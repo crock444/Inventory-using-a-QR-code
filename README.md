@@ -3,3 +3,5 @@ In this project, I have created an application that will scan a QR code with the
 This is how it looks visually:
 ![image](https://github.com/crock444/Inventory-using-a-QR-code/assets/137194529/36ace0e0-b998-4693-a1de-72fda74e896d) ![image](https://github.com/crock444/Inventory-using-a-QR-code/assets/137194529/835d19f0-419b-4244-9bea-beaa8c53b0ad)
 
+After the complaint is sent, the administration receives a notification of a new complaint and can see when it happened.
+![image](https://github.com/crock444/Inventory-using-a-QR-code/assets/137194529/26216881-189b-4d33-96eb-9b09414dffc0)
