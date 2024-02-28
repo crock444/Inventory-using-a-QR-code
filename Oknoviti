@@ -1,0 +1,251 @@
+package com.example.project;
+
+
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.media.MediaPlayer;
+import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.ScaleAnimation;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.Query;
+import com.google.firebase.database.ValueEventListener;
+import com.google.zxing.integration.android.IntentIntegrator;
+import com.google.zxing.integration.android.IntentResult;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+
+public class Oknoviti extends AppCompatActivity {
+    Button scan_btn;
+    TextView textView;
+    private Button button3;
+    private TextView text;
+    private EditText edEmail;
+    private EditText edName;
+    private MediaPlayer mediaPlayer; // Переменная для воспроизведения звука
+    MediaPlayer scan_sound;
+
+
+    private DatabaseReference mDataBase;
+    private static final String PHOTO_URL = "photoUrl";
+    private String USER_KEY = "Student";
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.oknoviti);
+        init();
+
+        // Отключаем возможность ввода текста в edName
+        edName.setEnabled(false);
+
+        edEmail.addTextChangedListener(loginTextWatcher);
+        text = findViewById(R.id.text);
+        button3 = findViewById(R.id.button3);
+        text.addTextChangedListener(loginTextWatcher);
+        scan_btn = findViewById(R.id.scanner);
+        textView = findViewById(R.id.text);
+        mediaPlayer = MediaPlayer.create(this, R.raw.scan_sound); // Инициализируем MediaPlayer
+
+        // Устанавливаем исходный текст в TextView
+        text.setText("Отсканируйте QR-код");
+
+        scan_btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // Вызываем вашу метод сканирования QR-кода
+                initiateScan();
+                // Добавляем анимацию нажатия на кнопку scanner
+                scaleButton(scan_btn);
+
+            }
+        });
+
+        button3.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // Вызываем ваш метод сохранения данных
+                onclickSave(v);
+                // Добавляем анимацию нажатия на кнопку button3
+                scaleButton(button3);
+            }
+        });
+    }
+
+    private void scaleButton(View view) {
+        // Создаем анимацию масштабирования кнопки
+        ScaleAnimation anim = new ScaleAnimation(
+                1f, 0.9f,
+                1f, 0.9f,
+                Animation.RELATIVE_TO_SELF, 0.5f,
+                Animation.RELATIVE_TO_SELF, 0.5f);
+        anim.setDuration(100);
+        anim.setRepeatMode(Animation.REVERSE);
+        anim.setRepeatCount(1);
+
+        view.startAnimation(anim);
+    }
+
+    private void initiateScan() {
+        IntentIntegrator intentIntegrator = new IntentIntegrator(Oknoviti.this);
+        intentIntegrator.setOrientationLocked(true);
+        intentIntegrator.setPrompt("");
+        intentIntegrator.setCameraId(0);
+        // Установим true для отображения изображения QR-кода в области сканирования
+        intentIntegrator.setBarcodeImageEnabled(true);
+
+        intentIntegrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE);
+        intentIntegrator.initiateScan();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        IntentResult intentResult = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
+        if (intentResult != null) {
+            String contents = intentResult.getContents();
+            if (contents != null) {
+                // Устанавливаем текст в TextView после успешного сканирования
+                text.setText("Напишите жалобу на ученика ниже");
+
+                edName.setText(contents);
+                edName.setEnabled(true);
+                playScanSound(); // Воспроизводим звук при успешном сканировании
+            }
+        }
+    }
+
+    private void playScanSound() {
+        mediaPlayer.start(); // Воспроизводим звук
+    }
+
+    private void init(){
+        edName = findViewById(R.id.edName);
+        edEmail = findViewById(R.id.edEmail);
+        mDataBase = FirebaseDatabase.getInstance().getReference(USER_KEY);
+    }
+
+    public void onclickSave(View view){
+        final String name = edName.getText().toString();
+        final String fail = edEmail.getText().toString();
+        final String currentDate = getCurrentDate();
+
+        // Создаем запрос к базе данных Firebase для проверки существования ученика с заданным именем
+        Query query = mDataBase.orderByChild("nameandsecond").equalTo(name);
+        query.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                if (dataSnapshot.exists()) {
+                    // Ученик существует, дополняем его жалобы
+                    for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
+                        String userId = snapshot.getKey();
+                        addComplaint(userId, currentDate, fail ); // Дополняем жалобы ученика
+                    }
+                } else {
+                    // Ученика нет, создаем нового ученика и добавляем жалобу
+                    User newUser = new User(name, currentDate + ": " + fail + " ;");
+                    mDataBase.push().setValue(newUser);
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+                // Обработка ошибок запроса
+            }
+        });
+    }
+
+    private void addComplaint(String userId, String currentDate, String fail) {
+        DatabaseReference userRef = mDataBase.child(userId);
+        userRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                if (dataSnapshot.exists()) {
+                    String existingFail = dataSnapshot.child("fail").getValue(String.class);
+                    if (existingFail != null && !existingFail.isEmpty()) {
+                        existingFail += "\n" + currentDate + ": " + fail + " ;";
+                    } else {
+                        existingFail = currentDate + ": " + fail + " ;";
+                    }
+                    userRef.child("fail").setValue(existingFail);
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+                // Обработка ошибок запроса
+            }
+        });
+    }
+
+    private String getCurrentDate() {
+        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
+        return sdf.format(new Date());
+    }
+
+    public void openNewActivity(View view) {
+        Intent intent = new Intent( Oknoviti.this, Oknoviti.class);
+        startActivity(intent);
+    }
+
+    private TextWatcher loginTextWatcher = new TextWatcher() {
+        @Override
+        public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+        @Override
+        public void onTextChanged(CharSequence s, int start, int before, int count) {
+            String usernameInput = edEmail.getText().toString().trim();
+            button3.setEnabled(!usernameInput.isEmpty() );
+        }
+
+        @Override
+        public void afterTextChanged(Editable s) {}
+    };
+
+
+    ///Здесь дописываем прорверку пароля каждый раз, когда учитель заходит в приложение
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // Проверяем, введен ли пароль
+        SharedPreferences preferences = getSharedPreferences("PREFS", MODE_PRIVATE);
+        String password = preferences.getString("password", "");
+
+        if (password.equals("")) {
+            // Если пароль не установлен, открываем активность ввода пароля
+            startActivity(new Intent(Oknoviti.this, PasswordActivity.class));
+            finish();
+        }
+    }
+
+    // В этом методе можно сохранить пароль при закрытии приложения
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        SharedPreferences preferences = getSharedPreferences("PREFS", MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString("password", "your_password");
+        editor.apply();
+    }
+
+}
