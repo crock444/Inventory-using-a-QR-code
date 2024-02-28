@@ -1,0 +1,18 @@
+package com.example.project;
+
+public class User {
+    public String nameandsecond, fail;
+
+
+    public User(String nameandsecond, String fail) {
+        this.nameandsecond = nameandsecond;
+        this.fail = fail;
+
+
+    }
+
+
+
+
+
+}
